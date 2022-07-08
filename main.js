@@ -15,10 +15,12 @@
  * Roadmap:
  * - track branch
  * - track semver range
+ * - development mode - disable cache
  */
 
-let scriptName = 'WeatherLine';
-let scriptUrl = 'https://raw.githubusercontent.com/jamesramsay/scriptable-weather-line/main/weatherline.js';
+const useCache = false;
+const scriptName = 'WeatherLine';
+const scriptUrl = 'https://raw.githubusercontent.com/jamesramsay/scriptable-weather-line/develop/weatherline.js';
 
 let modulePath = await downloadModule(scriptName, scriptUrl); // jshint ignore:line
 if (modulePath != null) {
@@ -38,7 +40,9 @@ async function downloadModule(scriptName, scriptUrl) {
   let dayNumber = Math.floor(Date.now() / 1000 / 60 / 60 / 24);
   let moduleFilename = dayNumber.toString() + '.js';
   let modulePath = fm.joinPath(moduleDir, moduleFilename);
-  if (fm.fileExists(modulePath)) {
+
+  // Ignore cache when in development environment
+  if (useCache && fm.fileExists(modulePath)) {
     console.log('Module already downlaoded ' + moduleFilename);
     return modulePath;
   } else {
@@ -51,9 +55,9 @@ async function downloadModule(scriptName, scriptUrl) {
     if (moduleJs) {
       fm.write(modulePath, moduleJs);
       if (moduleFiles != null) {
-        moduleFiles.map(x => {
-          fm.remove(fm.joinPath(moduleDir, x));
-        });
+        moduleFiles
+          .filter(x => modulePath.endsWith(x) == false)
+          .map(x => fm.remove(fm.joinPath(moduleDir, x)));
       }
       return modulePath;
     } else {
@@ -81,9 +85,9 @@ function getModuleVersions(scriptName) {
       let moduleFiles = versions.map(x => {
         return x + '.js';
       });
-      moduleLatestFile = versions[0] + '.js';
-      return [moduleFiles, moduleLatestFile];
+      return [moduleFiles, moduleFiles[0]];
     }
   }
   return [null, null];
 }
+
