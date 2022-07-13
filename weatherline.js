@@ -2,17 +2,15 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: deep-green; icon-glyph: magic;
 
-/*global Size, Color, Path, Point, Font, args, config*/
-
 // Widget Params
 // Don't edit this, those are default values for debugging (location for Cupertino).
 // You need to give your locations parameters through the widget params, more info below.
 
 // Development configuration
 const debugParams = JSON.stringify({
-  LOC_ID: "r1r14c",
-  LOC_NAME: "Carlton North",
-  widgetSize: "small",
+  BOM_GEO_HASH: "r1r14c",
+  locationName: "Carlton North",
+  widgetSize: "medium",
   screenSize: new Size(414, 896),
 });
 
@@ -22,7 +20,17 @@ const widgetParams = JSON.parse(
 
 console.log(widgetParams);
 
-const configWeatherLine = {
+function newGradient(startColor, endColor) {
+  const gradient = new LinearGradient();
+  gradient.colors = [startColor, endColor];
+  gradient.locations = [0.0, 1];
+
+  return gradient;
+}
+
+
+
+const configWL = {
   twelveHours: true,
   roundedGraph: true,
   roundedTemp: true,
@@ -38,6 +46,31 @@ const configWeatherLine = {
   symbolFontSize: 18,
   tempFontSize: 16,
 }
+
+const COLORS = {
+  day: {
+    bgGradient: newGradient(new Color('#4B8AB4'), new Color('#76A6C6')),
+    bgColor: new Color('#F0C2FE'),
+    fgColor: new Color('#FFFFFF'), // 027DB7'),
+    dayColor: new Color('#F0C40F'),
+    nightColor: new Color('#FFFFFF'),
+    rainColor: new Color('#FFFFFF'),
+    snowColor: new Color('#FFFFFF'),
+    heatColor: new Color('#F0C40F'),
+  },
+  night: {
+    bgGradient: newGradient(new Color('#4B8AB4'), new Color('#76A6C6')),
+    bgColor: new Color('#262626'),
+    fgColor: new Color('#949494'),
+    dayColor: new Color('#FE9C00'),
+    nightColor: new Color('#999999'),
+    rainColor: new Color('#2893DE'),
+    snowColor: new Color('#2893DE'),
+    heatColor: new Color('#F45246'),
+  },
+};
+const COLOR_SCHEME = 'day';
+const colorscheme = COLORS[COLOR_SCHEME];
 
 const widgetSize = config.widgetFamily || widgetParams.widgetSize;
 
@@ -134,28 +167,17 @@ const SYMBOL_MAP = {
     },
 }
 
-async function renderWidget(widgetFamily, widgetSizeInPoints) {
-
-  return widget
-}
-/**
- *  // Present preview
- *  switch (widgetFamily) {
- *    case 'small':
- *      widget.presentSmall();
- *      break;
- *    case 'medium':
- *      widget.presentMedium();
- *      break;
- *    case 'large':
- *      widget.presentLarg();
- *      break;
- *  }
- */
-
-
 async function newMain() {
   const weatherData = getWeatherData(location);
+
+  const presentFn = {
+    'small': widget.presentSmall,
+    'medium': widget.presentMedium,
+    'large': widget.presentLarge,
+  }
+  presentFn[widgetFamily]();
+
+  return widget
 }
 
 // Set up cache. File located in the Scriptable iCloud folder
@@ -201,12 +223,6 @@ async function getWeatherData(location = "r1r14c") {
 
 
 async function main() {
-
-
-  // BOM Location data
-  var LOCATION_ID = "r1r14c"; // widgetParams.LOC_ID; // "abc123"
-  var LOCATION_NAME = "Carlton North"; // widgetParams.LOC_NAME; // "Your place"
-
   // String customization
   const nowstring = "Now"; // Your local term for "now"
 
@@ -217,24 +233,18 @@ async function main() {
   // roundedTemp : true|false > true (Displays the temps rounding the values (29.8 = 30 | 29.3 = 29).
   const roundedTemp = true;
   // hoursToShow : number > Number of predicted hours to show, Eg: 3 = a total of 4 hours in the widget (Default: 3 for the small widget and 11 for the medium one).
-  const hoursToShow = configWeatherLine[widgetSize].hoursToShow;
-
+  const hoursToShow = configWL[widgetSize].hoursToShow;
 
   const contextSize = getWidgetSizeInPoints(); //'medium', new Size(414, 896));
 
-  // foregroundColor : Color > Foreground color of the widget (Text and labels)
-  const foregroundColor = new Color("#949494", 1);
-  // backgroundColor : Color > Background color of the widgets.
-  const backgroundColor = new Color("#262626", 1);
+  const weatherData = await getWeatherData(widgetParams.BOM_GEOHASH);
 
-
-  const weatherData = await getWeatherData(LOCATION_ID);
-
+  // Default widget padding is 16 points
   const widgetPadding = 16;
 
   const widget = new ListWidget();
   widget.setPadding(widgetPadding, widgetPadding, 0, widgetPadding);
-  widget.backgroundColor = backgroundColor;
+  widget.backgroundGradient = colorscheme.bgGradient;
 
   const rowStack = widget.addStack();
   rowStack.layoutVertically();
@@ -247,7 +257,6 @@ async function main() {
 
 
   // Functions
-
   function drawChartImage(w, h) {
     const ctx = new DrawContext();
     ctx.size = new Size(w, h);
@@ -304,7 +313,7 @@ async function main() {
       );
 
       // Temperature text
-      const tempFontSize = configWeatherLine.tempFontSize * (i > 0 ? 1 : 1.5);
+      const tempFontSize = configWL.tempFontSize * (i > 0 ? 1 : 1.5);
       drawTextC(
         ctx,
         shouldRound(roundedTemp, temp),
@@ -324,7 +333,7 @@ async function main() {
 
       // Axis text
       const axisFontSize = 12;
-      const axisFontColor = Color.gray();
+      const axisFontColor = colorscheme.fgColor;
       const axisFontWeight = 'regular';
       const axisOffset = ctx.size.height - axisFontSize * 1.5;
       drawTextC(
@@ -409,8 +418,6 @@ async function main() {
   //     30
   //   );
 
-
-
   function drawTextC(
     ctx,
     text,
@@ -454,34 +461,21 @@ async function main() {
       sfs = SFSymbol.named((night && SYMBOL_MAP[condition].night) || SYMBOL_MAP[condition].day);
     }
 
-    sfs.applyFont(Font.systemFont(configWeatherLine.symbolFontSize));
+    sfs.applyFont(Font.systemFont(configWL.symbolFontSize));
     return sfs.image;
   }
 
   function dynamicColor(hourData) {
     // Night
-    if (hourData.is_night == true) {
-      // Gray
-      return new Color("#999999");
-    }
+    if (hourData.is_night == true) return colorscheme.nightColor;
+
     // Rain or Snow
-    if (hourData.rain.chance >= 20) {
-      // Blue
-      // Light: #259EDC
-      // Dark: #2893DE
-      return new Color("#2893DE", 1);
-    }
+    if (hourData.rain.chance >= 20) return colorscheme.rainColor;
 
     // Extreme Heat
-    if (hourData.temp >= 35) {
-      // Red
-      // Light:
-      // Dark: F45246
-      return new Color("#F45246", 1);
-    }
+    if (hourData.temp >= 35) return colorscheme.heatColor;
 
-    return new Color("#FE9C00", 1);
-    return foregroundColor;
+    return colorscheme.dayColor;
   }
 
   // Hourly stack contains temp chart
@@ -502,14 +496,14 @@ async function main() {
     textStack.layoutVertically();
     textStack.topAlignContent();
 
-    const heading = textStack.addText(LOCATION_NAME)
-    heading.textColor = foregroundColor;
-    heading.font = Font.semiboldSystemFont(configWeatherLine.headerFontSize);
+    const heading = textStack.addText(widgetParams.locationName);
+    heading.textColor = colorscheme.fgColor;
+    heading.font = Font.semiboldSystemFont(configWL.headerFontSize);
     heading.minimumScaleFactor = 1;
 
     const subheading = textStack.addText(weatherData.daily[0].short_text);
-    subheading.textColor = foregroundColor;
-    subheading.font = Font.regularSystemFont(configWeatherLine.headerFontSize);
+    subheading.textColor = colorscheme.fgColor;
+    subheading.font = Font.regularSystemFont(configWL.headerFontSize);
     subheading.minimumScaleFactor = 1;
 
     headerStack.addSpacer();
@@ -519,7 +513,7 @@ async function main() {
     chartStack.layoutHorizontally();
 
     const chartWidth = contextSize.width - widgetPadding * 2;
-    const chartHeight = contextSize.height - widgetPadding * 2 - configWeatherLine.headerFontSize * 2;
+    const chartHeight = contextSize.height - widgetPadding * 2 - configWL.headerFontSize * 2;
     const chartImage = drawChartImage(chartWidth, chartHeight);
     const img = chartStack.addImage(chartImage);
     drawDebugBorder(img);
@@ -602,7 +596,7 @@ function getWidgetSizeInPoints(
 }
 
 // Fetching should normalize to a simplified format
-async function fetchWeatherData(geohash = "r1r14c") {
+async function fetchWeatherData(geohash) {
   // Undocumented BOM API
   // Example: https://weather.bom.gov.au/location/r1r14cw-carlton-north
   console.log(`Fetching BOM forecasts for ${geohash}...`);
