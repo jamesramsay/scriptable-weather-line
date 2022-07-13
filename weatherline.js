@@ -28,8 +28,6 @@ function newGradient(startColor, endColor) {
   return gradient;
 }
 
-
-
 const configWL = {
   twelveHours: true,
   roundedGraph: true,
@@ -50,7 +48,7 @@ const configWL = {
 const COLORS = {
   day: {
     bgGradient: newGradient(new Color('#4B8AB4'), new Color('#76A6C6')),
-    bgColor: new Color('#F0C2FE'),
+    bgColor: new Color('#5695BD'),
     fgColor: new Color('#FFFFFF'), // 027DB7'),
     dayColor: new Color('#F0C40F'),
     nightColor: new Color('#FFFFFF'),
@@ -257,12 +255,20 @@ async function main() {
 
 
   // Functions
-  function drawChartImage(w, h) {
+  function drawChartImage(weatherData, w, h) {
     const ctx = new DrawContext();
     ctx.size = new Size(w, h);
     ctx.opaque = false;
     ctx.setTextAlignedCenter();
     ctx.respectScreenScale = true;
+
+    const tempFontSize = configWL.tempFontSize;
+    const lineStrokeWidth = 3;
+    const symbolFontSize = configWL.symbolFontSize;
+    const axisFontSize = configWL.headerFontSize;
+    const axisFontColor = colorscheme.fgColor;
+    const axisFontWeight = 'regular';
+    const axisOffset = ctx.size.height - axisFontSize * 1.5;
 
     let min, max, diff;
     for (let i = 0; i <= hoursToShow; i++) {
@@ -271,6 +277,11 @@ async function main() {
       max = temp > max || max == undefined ? temp : max;
     }
     diff = max - min;
+
+    const unitWidth = ctx.size.width / hoursToShow;
+    const lowerLineLimit = ctx.size.height - axisFontSize - 2 * symbolFontSize;
+    const upperLineLimit = 0 + tempFontSize;
+    const verticalSpacing = (lowerLineLimit - upperLineLimit) / diff;
 
     for (let i = 0; i <= hoursToShow; i++) {
       let hourData = weatherData.hourly[i];
@@ -283,18 +294,15 @@ async function main() {
         hour =
           hour > 12 ? hour - 12 : hour == 0 ? "12a" : hour == 12 ? "12p" : hour;
       let temp = i == 0 ? weatherData.current.temp : hourData.temp;
+
+      // Vertically center line when diff == 0 (all temperatures are the same)
       let delta = diff > 0 ? (shouldRound(roundedGraph, temp) - min) / diff : 0.5;
       let nextDelta = diff > 0 ? (nextHourTemp - min) / diff : 0.5;
 
-      const unitWidth = ctx.size.width / hoursToShow;
-      const lineOffset = 75;
-      const verticalSpacing = 20;
-
-      const lineStrokeWidth = 3;
       const x1 = unitWidth * i + unitWidth / 2;
-      const y1 = lineOffset - verticalSpacing * delta;
+      const y1 = lowerLineLimit - verticalSpacing * delta;
       const x2 = unitWidth * (i + 1) + unitWidth / 2;
-      const y2 = lineOffset - verticalSpacing * nextDelta;
+      const y2 = lowerLineLimit - verticalSpacing * nextDelta;
 
       // Do not draw line from last element to element after
       if (i < hoursToShow - 1) {
@@ -304,7 +312,15 @@ async function main() {
       }
 
       // Symbol
-      const symbol = symbolForCondition(hourData.icon_descriptor, hourData.is_night);
+      const symbol = symbolForCondition(hourData, symbolFontSize);
+      // fillEllipse(
+      //   ctx,
+      //   x1 - symbolFontSize,
+      //   y1 - symbolFontSize,
+      //   symbolFontSize * 1.5,
+      //   symbolFontSize * 1.5,
+      //   colorscheme.bgColor
+      // );
       drawImage(
         ctx,
         symbol,
@@ -313,11 +329,11 @@ async function main() {
       );
 
       // Temperature text
-      const tempFontSize = configWL.tempFontSize * (i > 0 ? 1 : 1.5);
+      const labelFontSize = tempFontSize * (i > 0 ? 1 : 1.5);
       drawTextC(
         ctx,
         shouldRound(roundedTemp, temp),
-        tempFontSize,
+        labelFontSize,
         // x
         unitWidth * i,
         // y
@@ -325,17 +341,12 @@ async function main() {
         // width
         unitWidth,
         // height
-        tempFontSize,
+        labelFontSize,
         dynamicColor(hourData),
         'regular'
       );
 
-
       // Axis text
-      const axisFontSize = 12;
-      const axisFontColor = colorscheme.fgColor;
-      const axisFontWeight = 'regular';
-      const axisOffset = ctx.size.height - axisFontSize * 1.5;
       drawTextC(
         ctx,
         i == 0 ? nowstring : hour,
@@ -455,13 +466,13 @@ async function main() {
   }
 
   // SFSymbol function
-  function symbolForCondition(condition, night) {
+  function symbolForCondition(hourData, size) {
     let sfs = SFSymbol.named("wind");
-    if (typeof SYMBOL_MAP[condition] == "object") {
-      sfs = SFSymbol.named((night && SYMBOL_MAP[condition].night) || SYMBOL_MAP[condition].day);
+    if (typeof SYMBOL_MAP[hourData.icon_descriptor] == "object") {
+      sfs = SFSymbol.named((hourData.is_night && SYMBOL_MAP[hourData.icon_descriptor].night) || SYMBOL_MAP[hourData.icon_descriptor].day);
     }
 
-    sfs.applyFont(Font.systemFont(configWL.symbolFontSize));
+    sfs.applyFont(Font.systemFont(size));
     return sfs.image;
   }
 
@@ -514,7 +525,7 @@ async function main() {
 
     const chartWidth = contextSize.width - widgetPadding * 2;
     const chartHeight = contextSize.height - widgetPadding * 2 - configWL.headerFontSize * 2;
-    const chartImage = drawChartImage(chartWidth, chartHeight);
+    const chartImage = drawChartImage(weatherData, chartWidth, chartHeight);
     const img = chartStack.addImage(chartImage);
     drawDebugBorder(img);
   }
@@ -542,6 +553,11 @@ function parseDate(dt) {
 
 function drawImage(ctx, image, x, y) {
   ctx.drawImageAtPoint(image, new Point(x, y));
+}
+
+function fillEllipse(ctx, x, y, w, h, fillColor) {
+  ctx.setFillColor(fillColor);
+  ctx.fillEllipse(new Rect(x, y, w, h));
 }
 
 function getWidgetSizeInPoints(
