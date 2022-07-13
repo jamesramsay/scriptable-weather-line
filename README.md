@@ -9,3 +9,11 @@
 
 - self updating
 - themes
+
+## Development
+
+Using `neovim`
+
+```
+npm install -g typescript typescript-language-server eslint prettier
+```

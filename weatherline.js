@@ -279,13 +279,13 @@ async function main() {
     diff = max - min;
 
     const unitWidth = ctx.size.width / hoursToShow;
-    const lowerLineLimit = ctx.size.height - axisFontSize - 2 * symbolFontSize;
-    const upperLineLimit = 0 + tempFontSize;
+    const lowerLineLimit = ctx.size.height - 2 * axisFontSize - symbolFontSize;
+    const upperLineLimit = 0; //+ tempFontSize / 2;
     const verticalSpacing = (lowerLineLimit - upperLineLimit) / diff;
 
     for (let i = 0; i <= hoursToShow; i++) {
-      let hourData = weatherData.hourly[i];
-      let nextHourTemp = shouldRound(
+      const hourData = weatherData.hourly[i];
+      const nextHourTemp = shouldRound(
         roundedGraph,
         weatherData.hourly[i + 1].temp
       );
@@ -293,7 +293,7 @@ async function main() {
       if (twelveHours)
         hour =
           hour > 12 ? hour - 12 : hour == 0 ? "12a" : hour == 12 ? "12p" : hour;
-      let temp = i == 0 ? weatherData.current.temp : hourData.temp;
+      const temp = i == 0 ? weatherData.current.temp : hourData.temp;
 
       // Vertically center line when diff == 0 (all temperatures are the same)
       let delta = diff > 0 ? (shouldRound(roundedGraph, temp) - min) / diff : 0.5;
@@ -337,7 +337,7 @@ async function main() {
         // x
         unitWidth * i,
         // y
-        y1 - symbol.size.height - tempFontSize,
+        y1 - symbol.size.height - labelFontSize,
         // width
         unitWidth,
         // height

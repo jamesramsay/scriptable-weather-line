@@ -1,0 +1,26 @@
+{
+  "name": "weatherline-scriptable",
+  "version": "0.1.0",
+  "description": "> [Scriptable](https://scriptable.app/) widget inspired by [Weather Line](https://weatherlineapp.com/) using [Bureau of Meteorology (BOM)](https://weather.bom.gov.au/) forecasts.",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jamesramsay/scriptable-weather-line.git"
+  },
+  "author": "James Ramsay",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jamesramsay/scriptable-weather-line/issues"
+  },
+  "homepage": "https://github.com/jamesramsay/scriptable-weather-line#readme",
+  "devDependencies": {
+    "@scriptable-ios/eslint-config": "^1.6.5",
+    "@types/scriptable-ios": "^1.6.5",
+    "@typescript-eslint/eslint-plugin": "^5.30.5",
+    "@typescript-eslint/parser": "^5.30.5",
+    "eslint": "^8.19.0"
+  }
+}
