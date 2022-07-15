@@ -4,7 +4,7 @@
 
 // Development configuration
 const debugParams = {
-  locationGeohash: 'r1r14c',
+  // locationGeohash: 'r1r14c',
   screenSize: new Size(414, 896),
   debugBorders: false,
 };
@@ -189,43 +189,83 @@ const SYMBOL_MAP = {
     },
 }
 
-// Set up cache. File located in the Scriptable iCloud folder
-async function getWeatherData(location) {
-  const cacheKey = `latest_${location}.json`;
-  const cacheDir = 'cacheWeatherLine';
 
-  const fm = FileManager.iCloud();
-  const cachePath = fm.joinPath(fm.documentsDirectory(), cacheDir);
+const secondsSinceEpoch = () => Math.round(Date.now() / 1000);
+
+const cacheDir = 'cacheWeatherLine';
+const Cache = {
+  directory: 'cache_WeatherLine',
+  keyMatch: (f, key) => f.match(new RegExp(`^\\d+[.]${key}$`)),
+  keyNotExpired: (f) => f.split('.', 1) > secondsSinceEpoch(),
+  secondsInMinute: 60,
+};
+
+/**
+ * Returns a cache hit if not expired.
+ * @param {string} key - The key of the cached item.
+ */
+Cache.read = function (key) {
+  const fm = FileManager.local();
+  const cachePath = fm.joinPath(fm.cacheDirectory(), Cache.directory);
+
+  if (!fm.fileExists(cachePath)) return;
+
+  const f = fm.listContents(cachePath)
+    .filter(f => Cache.keyMatch(f, key) && Cache.keyNotExpired(f))
+    .map(f => fm.joinPath(cachePath, f))
+    .find(f => fm.fileExists(f));
+
+  if (f == null) return;
+
+  const v = fm.readString(f);
+  const o = JSON.parse(v);
+
+  console.log(`Cache hit: ${f}`);
+  return o;
+}
+
+/**
+ * Updates cache
+ * @param {string} key
+ * @param {object} value
+ * @param {integer} ttl - The number of seconds the cached data should be retained.
+ */
+Cache.write = function(key, value, ttl = 60) {
+  const fm = FileManager.local();
+  const cachePath = fm.joinPath(fm.cacheDirectory(), Cache.directory);
 
   if (!fm.fileExists(cachePath)) {
     fm.createDirectory(cachePath);
   }
 
-  let weatherData = {};
-  try {
-    weatherData = await fetchWeatherData(location);
+  const staleFiles = fm.listContents(cachePath)
+    .filter(f => Cache.keyMatch(f, key))
+    .map(f => fm.joinPath(cachePath, f))
 
-    // Update cache
-    fm.writeString(
-      fm.joinPath(cachePath, cacheKey),
-      JSON.stringify(weatherData)
-    );
+  const filename = `${secondsSinceEpoch() + ttl}.${key}`;
+  const f = fm.joinPath(cachePath, filename);
+  const str = JSON.stringify(value);
+  fm.writeString(f, str);
 
-    weatherData.fromCache = false;
-  } catch (err) {
-    console.log("Warning: Offline mode");
-    console.log(err);
+  // Remove stale files after updating the cache
+  staleFiles.forEach((f) => fm.remove(f));
+}
+
+// Set up cache. File located in the Scriptable iCloud folder
+// @param {string} location - geohash string
+async function getWeatherData(location) {
+  let weatherData = Cache.read(`forecast.${location}.json`)
+
+  if (weatherData == null) {
     try {
-      await fm.downloadFileFromiCloud(fm.joinPath(cachePath, cacheKey));
-      let raw = fm.readString(fm.joinPath(cachePath, cacheKey));
-
-      weatherData = JSON.parse(raw);
-      weatherData.fromCache = true;
-    } catch (ex) {
-      console.log("Error: No offline data cached");
-      console.log(ex);
+      weatherData = await fetchWeatherData(location);
+      Cache.write(`forecast.${location}.json`, weatherData);
+    } catch (err) {
+      console.log(err);
     }
   }
+
+  console.log(typeof weatherData);
 
   return weatherData;
 }
@@ -631,8 +671,15 @@ function colorForCondition(forecast) {
 }
 
 async function getLocationGeohash() {
-  const {latitude, longitude} = await Location.current();
-  return encodeGeohash(latitude, longitude, 6);
+  const cacheKey = 'current_location.json';
+  let l = Cache.read(cacheKey);
+
+  if (l == null) {
+    l = await Location.current();
+    Cache.write(cacheKey, l, Cache.secondsInMinute * 5);
+  }
+
+  return encodeGeohash(l.latitude, l.longitude, 6);
 }
 
 /**
@@ -698,7 +745,6 @@ function encodeGeohash(lat, lon, precision = 6) {
       }
   }
 
-  console.log({geohash})
   return geohash;
 }
 
