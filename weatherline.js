@@ -83,7 +83,7 @@ const COLORS = {
     heatColor: new Color('#F0C40F'),
   },
   night: {
-    bgGradient: newGradient(new Color('#4B8AB4'), new Color('#76A6C6')),
+    bgGradient: newGradient(new Color('#18182D'), new Color('#282C42')),
     bgColor: new Color('#262626'),
     fgColor: new Color('#949494'),
     dayColor: new Color('#FE9C00'),
