@@ -1,6 +1,6 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: deep-green; icon-glyph: leaf;
+// icon-color: teal; icon-glyph: sun;
 "use strict";
 
 /**
@@ -18,7 +18,7 @@
  * - development mode - disable cache
  */
 
-const useCache = false;
+const useCache = true;
 const scriptName = 'WeatherLine';
 const scriptUrl = 'https://raw.githubusercontent.com/jamesramsay/scriptable-weather-line/develop/weatherline.js';
 
@@ -41,9 +41,13 @@ async function downloadModule(scriptName, scriptUrl) {
   let moduleFilename = dayNumber.toString() + '.js';
   let modulePath = fm.joinPath(moduleDir, moduleFilename);
 
-  // Ignore cache when in development environment
-  if (useCache && fm.fileExists(modulePath)) {
-    console.log('Module already downlaoded ' + moduleFilename);
+  // Development
+  const developmentPath = fm.joinPath(moduleDir, 'develop.js');
+  if (fm.fileExists(developmentPath)) {
+    console.log('Using development version ' + developmentPath);
+    return developmentPath;
+  } else if (useCache && fm.fileExists(modulePath)) {
+    console.log('Module already downloaded ' + moduleFilename);
     return modulePath;
   } else {
     let [moduleFiles, moduleLatestFile] = getModuleVersions(scriptName);
