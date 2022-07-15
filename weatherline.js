@@ -5,15 +5,15 @@
 // Development configuration
 const debugParams = {
   locationGeohash: 'r1r14c',
-  widgetFamily: 'medium',
   screenSize: new Size(414, 896),
-  layout: ['daily'],
   debugBorders: false,
 };
 
 const DEFAULT_CONFIG = {
+  layout: ['daily'],
+
   // Development configs
-  widgetFamily: config.widgetFamily,
+  widgetFamily: config.widgetFamily || 'medium',
   screenSize: Device.screenSize(),
 
   // Local term for 'now'
@@ -392,11 +392,13 @@ function drawImage(ctx, image, x, y) {
 }
 
 function getWidgetSizeInPoints(widgetFamily, screenSize) {
+  console.log({widgetFamily, screenSize});
+
   // RegExp to verify widgetSize
-  const sizes = /^(?:small|medium|large)$/
+  const sizes = /^(?:small|medium|large)$/;
 
   // stringify device screen size
-  const devSize = (({width: w, height: h}) => w > h ? `${h}x${w}` : `${w}x${h}`)(screenSize)
+  const devSize = (({width: w, height: h}) => w > h ? `${h}x${w}` : `${w}x${h}`)(screenSize);
 
   // screen size to widget size mapping for iPhone, excluding the latest iPhone 12 series. iPad size
   const sizeMap = {
