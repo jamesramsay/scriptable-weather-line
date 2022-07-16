@@ -590,7 +590,7 @@ function drawChartImage(data, pointsToShow, labelFn, w, h) {
       // x
       unitWidth * i,
       // y
-      y1 - symbol.size.height - labelFontSize,
+      y1 - symbolFontSize * 1.2 - labelFontSize,
       // width
       unitWidth,
       // height
