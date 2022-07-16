@@ -9,17 +9,12 @@ const debugParams = {
   debugBorders: false,
 };
 
-const DEFAULT_CONFIG = {
-  layout: ['daily'],
+const DEFAULTS = {
+  layout: 'daily',
 
   // Development configs
   widgetFamily: config.widgetFamily || 'medium',
   screenSize: Device.screenSize(),
-
-  // Local term for 'now'
-  nowString: 'Now',
-  // Local term for 'today'
-  todayString: 'Today',
 
   // twelveHours: defines if the hours are displayed in a 12h format, use false for 24h format.
   twelveHours: true,
@@ -34,22 +29,64 @@ const DEFAULT_CONFIG = {
   headerFontSize: 12,
   symbolFontSize: 18,
   tempFontSize: 16,
-
-  small: {
-    hoursToShow: 4,
-    daysToShow: 4,
-  },
-  medium: {
-    hoursToShow: 10,
-    daysToShow: 10,
-  },
 };
 
+function formatHours(hour) {
+  if (cfg.twelveHours != true) return hour;
+  switch (hour) {
+    case 0:
+      return '12a';
+    case 12:
+      return '12p';
+    default:
+      return hour % 12;
+  }
+}
+
+const WIDGET_FAMILY_DEFAULTS = {
+  small: {
+    daily: {
+      nowString: 'Today',
+      pointsToShow: 4,
+      getTemp: (forecast) => forecast.temp_max,
+      getAxisLabel: (forecast) => parseDate(forecast.date).getDate(),
+    },
+    hourly: {
+      nowString: 'Now',
+      pointsToShow: 4,
+      getTemp: (forecast) => forecast.temp,
+      getAxisLabel: (forecast) => formatHours(parseDate(forecast.time).getHours()),
+    },
+  },
+  medium: {
+    daily: {
+      nowString: 'Today',
+      pointsToShow: 7,
+      getTemp: (forecast) => forecast.temp_max,
+      getAxisLabel: (forecast) => parseDate(forecast.date).getDate(),
+    },
+    hourly: {
+      nowString: 'Now',
+      pointsToShow: 10,
+      getTemp: (forecast) => forecast.temp,
+      getAxisLabel: (forecast) => formatHours(parseDate(forecast.time).getHours()),
+    },
+  },
+}
+
 async function getCfg() {
-  const widgetParameter = (Device.name() == 'Remote FlatMac' ? debugParams : JSON.parse(args.widgetParameter));
+  let widgetParams = {};
+
+  // Detect development environment based on device name
+  if (Device.name() == 'Remote FlatMac') widgetParams = debugParams;
+
+  // Avoid trying to parse null or empty strings
+  if (args.widgetParameter) widgetParams = JSON.parse(args.widgetParameter);
+
   let cfg = {
-    ...DEFAULT_CONFIG,
-    ...widgetParameter,
+    ...DEFAULTS,
+    ...WIDGET_FAMILY_DEFAULTS[DEFAULTS.widgetFamily],
+    ...widgetParams,
   }
 
   cfg.contextSize = getWidgetSizeInPoints(cfg.widgetFamily, cfg.screenSize);
@@ -190,9 +227,13 @@ const SYMBOL_MAP = {
 }
 
 
+/**
+ * Cache
+ *
+ * Implementation of a simple cache using FileManager.cacheDirectory.
+ *
+ */
 const secondsSinceEpoch = () => Math.round(Date.now() / 1000);
-
-const cacheDir = 'cacheWeatherLine';
 const Cache = {
   directory: 'cache_WeatherLine',
   keyMatch: (f, key) => f.match(new RegExp(`^\\d+[.]${key}$`)),
@@ -202,7 +243,9 @@ const Cache = {
 
 /**
  * Returns a cache hit if not expired.
+ *
  * @param {string} key - The key of the cached item.
+ * @returns {object} - The cached item.
  */
 Cache.read = function (key) {
   const fm = FileManager.local();
@@ -226,11 +269,12 @@ Cache.read = function (key) {
 
 /**
  * Updates cache
- * @param {string} key
- * @param {object} value
- * @param {integer} ttl - The number of seconds the cached data should be retained.
+ *
+ * @param {string} key - The key of the item to be cached.
+ * @param {object} item - The item to be cached.
+ * @param {number} ttl - The number of seconds the cached data should be retained.
  */
-Cache.write = function(key, value, ttl = 60) {
+Cache.write = function(key, item, ttl = 60) {
   const fm = FileManager.local();
   const cachePath = fm.joinPath(fm.cacheDirectory(), Cache.directory);
 
@@ -244,15 +288,19 @@ Cache.write = function(key, value, ttl = 60) {
 
   const filename = `${secondsSinceEpoch() + ttl}.${key}`;
   const f = fm.joinPath(cachePath, filename);
-  const str = JSON.stringify(value);
+  const str = JSON.stringify(item);
   fm.writeString(f, str);
 
   // Remove stale files after updating the cache
   staleFiles.forEach((f) => fm.remove(f));
 }
 
-// Set up cache. File located in the Scriptable iCloud folder
-// @param {string} location - geohash string
+/**
+ * Set up cache. File located in the Scriptable iCloud folder
+ *
+ * @param {string} location - The 6 character long geohash string.
+ * @returns {object} - The weather data which may be cached.
+ */
 async function getWeatherData(location) {
   let weatherData = Cache.read(`forecast.${location}.json`)
 
@@ -264,9 +312,6 @@ async function getWeatherData(location) {
       console.log(err);
     }
   }
-
-  console.log(typeof weatherData);
-
   return weatherData;
 }
 
@@ -405,7 +450,11 @@ function addHourlyStack(parentStack, weatherData) {
 
   const chartWidth = cfg.contextSize.width - cfg.widgetPadding * 2;
   const chartHeight = cfg.contextSize.height - cfg.widgetPadding * 2 - cfg.headerFontSize * 2;
-  const chartImage = drawChartImage(weatherData.hourly, cfg[cfg.widgetFamily].hoursToShow, forecastHourLabel, chartWidth, chartHeight);
+  const chartSize = new Size(chartWidth, chartHeight);
+  const chartData = weatherData[cfg.layout];
+  const chartPoints = Math.min(chartData.length, cfg[cfg.layout].pointsToShow);
+  const chartOptions = cfg[cfg.layout];
+  const chartImage = drawChartImage(chartData, chartPoints, chartOptions, chartSize)
   chartStack.addImage(chartImage);
 }
 
@@ -508,23 +557,19 @@ async function fetchWeatherData(geohash) {
   return weatherData;
 }
 
-const forecastDateLabel = (str) => parseDate(str).getDate();
-const forecastHourLabel = (str) => {
-  let hour = parseDate(str).getHours();
-  if (cfg.twelveHours != true) return hour;
-  switch (hour) {
-    case 0:
-      return '12a';
-    case 12:
-      return '12p';
-    default:
-      return hour % 12;
-  }
-}
-
-function drawChartImage(data, pointsToShow, labelFn, w, h) {
+/**
+ * Draws a chart of hourly and daily forecasts.
+ *
+ * @param {object} data - The forecast data to display.
+ * @param {number} pointsToShow - The number of data points to show.
+ * @param {function} axisLabelFn - A function that takes a data point and returns a label.
+ * @param {number} w - The width of the chart to draw.
+ * @param {number} h - The height of the chart to draw.
+ * @returns {Image}
+ */
+function drawChartImage(data, pointsToShow, opts, chartSize) {
   const ctx = new DrawContext();
-  ctx.size = new Size(w, h);
+  ctx.size = chartSize;
   ctx.opaque = false;
   ctx.setTextAlignedCenter();
   ctx.respectScreenScale = true;
@@ -539,7 +584,7 @@ function drawChartImage(data, pointsToShow, labelFn, w, h) {
 
   let min, max, diff;
   for (let i = 0; i < pointsToShow; i++) {
-    const temp = shouldRound(cfg.roundedGraph, data[i].temp);
+    const temp = shouldRound(cfg.roundedGraph, opts.getTemp(data[i]));
     min = temp < min || min == undefined ? temp : min;
     max = temp > max || max == undefined ? temp : max;
   }
@@ -550,23 +595,24 @@ function drawChartImage(data, pointsToShow, labelFn, w, h) {
   const unitHeight = lowerLineLimit - upperLineLimit;
   const unitWidth = ctx.size.width / pointsToShow;
 
-  for (let i = 0; i <= pointsToShow; i++) {
+  for (let i = 0; i < pointsToShow; i++) {
     const forecast = data[i];
-    const temp = forecast.temp;
-    const nextTemp = shouldRound(cfg.roundedGraph, data[i + 1].temp);
-    const timeLabel = labelFn(forecast.time);
+    const temp = opts.getTemp(forecast);
+    const axisLabel = opts.getAxisLabel(forecast);
 
     // Vertically center line when diff == 0 (all temperatures are the same)
-    let delta = diff > 0 ? (shouldRound(cfg.roundedGraph, temp) - min) / diff : 0.5;
-    let nextDelta = diff > 0 ? (nextTemp - min) / diff : 0.5;
+    const delta = diff > 0 ? (shouldRound(cfg.roundedGraph, temp) - min) / diff : 0.5;
 
     const x1 = unitWidth * i + unitWidth / 2;
     const y1 = lowerLineLimit - unitHeight * delta;
-    const x2 = unitWidth * (i + 1) + unitWidth / 2;
-    const y2 = lowerLineLimit - unitHeight * nextDelta;
 
     // Do not draw line from last element to element after
     if (i < pointsToShow - 1) {
+      const nextTemp = shouldRound(cfg.roundedGraph, opts.getTemp(data[i + 1]));
+      const nextDelta = diff > 0 ? (nextTemp - min) / diff : 0.5;
+      const x2 = unitWidth * (i + 1) + unitWidth / 2;
+      const y2 = lowerLineLimit - unitHeight * nextDelta;
+
       drawLine(
         ctx,
         x1, y1, x2, y2, lineStrokeWidth, colorForCondition(forecast));
@@ -600,7 +646,7 @@ function drawChartImage(data, pointsToShow, labelFn, w, h) {
     );
 
     // Axis text
-    const label = i == 0 ? cfg.nowString : timeLabel;
+    const label = i == 0 ? opts.nowString : axisLabel;
     drawTextC(ctx, label, axisFontSize,
       unitWidth * i, axisOffset, // x, y
       unitWidth, axisFontSize * 1.5, // h, w
