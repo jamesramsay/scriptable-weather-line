@@ -6,7 +6,7 @@
 
 // Development configuration
 const debugParams = {
-  locationGeohash: 'r1r14c',
+  //locationGeohash: 'r1r14c',
   screenSize: new Size(414, 896),
   debugBorders: false,
 };
@@ -717,8 +717,9 @@ async function getLocationGeohash() {
   let l = Cache.read(cacheKey);
 
   if (l == null) {
+    Location.setAccuracyToKilometer()
     l = await Location.current();
-    Cache.write(cacheKey, l, Cache.secondsInMinute * 5);
+    Cache.write(cacheKey, l, Cache.secondsInMinute * 60);
   }
 
   return encodeGeohash(l.latitude, l.longitude, 6);
